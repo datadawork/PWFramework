@@ -12,10 +12,14 @@
     <AssemblyName>PWFrameWork</AssemblyName>
     <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <SccProjectName>SAK</SccProjectName>
-    <SccLocalPath>SAK</SccLocalPath>
-    <SccAuxPath>SAK</SccAuxPath>
-    <SccProvider>SAK</SccProvider>
+    <SccProjectName>
+    </SccProjectName>
+    <SccLocalPath>
+    </SccLocalPath>
+    <SccAuxPath>
+    </SccAuxPath>
+    <SccProvider>
+    </SccProvider>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -38,15 +42,21 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Xml" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Core.ClientFinder.cs" />
-    <Compile Include="Core.Injector.cs" />
-    <Compile Include="Core.MemoryManager.cs" />
-    <Compile Include="Core.WinApi.cs" />
+    <Compile Include="krukovis.ClientFinder.cs" />
+    <Compile Include="krukovis.GameStructs.cs" />
+    <Compile Include="krukovis.GraphicUserInterface.cs" />
+    <Compile Include="krukovis.OffsetsAndAddresses.cs" />
+    <Compile Include="krukovis.PacketSender.cs" />
+    <Compile Include="krukovis.WinApi.cs" />
+    <Compile Include="krukovis.OffsetRetriever.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="krukovis.MemoryWork.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="krukovis.ASM.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

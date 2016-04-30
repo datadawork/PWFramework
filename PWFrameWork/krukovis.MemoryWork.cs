@@ -1,12 +1,52 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Runtime.InteropServices;
+using System.Diagnostics;
 
 namespace PWFrameWork
 {
-    public static class MemoryManager
+    /// <summary>
+    /// Класс для работы с памятью 
+    /// </summary>
+    public class MemoryWork
     {
-        public static IntPtr OpenProcessHandle { get; set; }
+        //Хэндл открытого процесса
+        public IntPtr OpenedProcessHandle { get; set; }
+        //ID открытого процесса
+        public int OpenedProcessID { get; set; }
+        //Память под логин
+        public int LoginAllocMemory { get; set; }
+        //Память под пароль
+        public int PassAllocMemory { get; set; }
+        //Память под другие слова
+        public int TextAllocMemory { get; set; }
+        //Адрес под инжекты
+        public int FuncAllocMemory { get; set; }
+        //Адрес для пакета
+        public int PacketAllocMemory { get; set; }
+
+        /// <summary>
+        /// Конструктор класса открывающий память по id процесса извлекаемого из ClientWindow
+        /// </summary>
+        /// <param name="client_window"></param>
+        public MemoryWork(ClientWindow client_window)
+        {
+            //Открываем память выбранного процесса
+            OpenProcess(client_window.ProcessId);
+            //выделяем память в выбранном процессе
+            AllocateMemory();
+        }
+
+        /// <summary>
+        /// Конструктор класса открывающий память по id процесса
+        /// </summary>
+        /// <param name="process_id"></param>
+        public MemoryWork(int process_id)
+        {
+            OpenProcess(process_id);
+            AllocateMemory();
+        }
 
         /// <summary>
         /// Открывает объект процесса, возвращая дескриптор процесса. 
@@ -14,18 +54,55 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="processId">PID процесса, который мы хотитм открыть.</param>
         /// <returns></returns>
-        public static void OpenProcess(int processId)
+        private void OpenProcess(int process_id)
         {
-            OpenProcessHandle = WinApi.OpenProcess(WinApi.ProcessAccessFlags.All, false, processId);
+            OpenedProcessHandle = WinApi.OpenProcess(WinApi.ProcessAccessFlags.All, false, process_id);
+            OpenedProcessID = process_id;
             return;
         }
 
         /// <summary>
         /// Закрывает дескриптор открытого процесса.
         /// </summary>
-        public static void CloseProcess()
+        public void CloseProcess()
         {
-            WinApi.CloseHandle(OpenProcessHandle);
+            if (OpenedProcessHandle != IntPtr.Zero)
+                WinApi.CloseHandle(OpenedProcessHandle);
+            OpenedProcessHandle = IntPtr.Zero;
+        }
+
+        /// <summary>
+        /// Выделяет область памяти в памяти открытого окна  
+        /// </summary>
+        /// <returns></returns>
+        private void AllocateMemory()
+        {
+            //Выделяем страницу память в 2000 байт
+            int alloc_address = WinApi.VirtualAllocEx(this.OpenedProcessHandle, 0, 2500, WinApi.AllocationType.Commit, WinApi.MemoryProtection.ReadWrite);
+            //Сначала листа будут прописываться функции
+            this.FuncAllocMemory = alloc_address;
+            //с отступом в 500 - будет логин
+            this.LoginAllocMemory = alloc_address + 500;
+            //с отступом в 1000 - будет пароль
+            this.PassAllocMemory = alloc_address + 1000;
+            //с отступом в 1500 - будет прописываться другой текст
+            this.TextAllocMemory = alloc_address + 1500;
+            //с отступом в 2000 - будет прописываться пакет
+            this.PacketAllocMemory = alloc_address + 2000;
+        }
+        //Проблема: Под текст память выделяется динамически, а нужно сделать, чтобы память выделялась один раз и потом 
+        //только использовалась. 
+        //Решение: В выделенной памяти выделить блок: ЛогинМемору - для логина, ПассМемору - для пасса, 
+        //OtheTextMemory - память для остальных слов. После использования этого текста он должен затираться. Или даже не так-
+        //писать можно поверх старого текста, главное - добавлять конец строки и тогда все будет нормально отрабатывать. 
+
+        public byte ReadByte(Int32 address)
+        {
+            int read; var buffer = new byte[1];
+
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
+
+            return buffer[0];
         }
 
         /// <summary>
@@ -33,11 +110,11 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static Int16 ReadInt16(Int32 address)
+        public Int16 ReadInt16(Int32 address)
         {
             int read; var buffer = new byte[2];
 
-            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
 
             return BitConverter.ToInt16(buffer, 0);
         }
@@ -47,13 +124,22 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static Int32 ReadInt32(Int32 address)
+        public Int32 ReadInt32(Int32 address)
         {
             int read; var buffer = new byte[4];
 
-            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
 
             return BitConverter.ToInt32(buffer, 0);
+        }
+
+        public uint ReadUInt32(Int32 address)
+        {
+            int read; var buffer = new byte[4];
+
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
+
+            return BitConverter.ToUInt32(buffer, 0);
         }
 
         /// <summary>
@@ -61,11 +147,11 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static Int64 ReadInt64(Int32 address)
+        public Int64 ReadInt64(Int32 address)
         {
             int read; var buffer = new byte[8];
 
-            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
 
             return BitConverter.ToInt64(buffer, 0);
         }
@@ -75,11 +161,11 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static Single ReadFloat(Int32 address)
+        public Single ReadFloat(Int32 address)
         {
             int read; var buffer = new byte[4];
 
-            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
 
             return BitConverter.ToSingle(buffer, 0);
         }
@@ -89,11 +175,11 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="address"></param>
         /// <returns></returns>
-        public static Double ReadDouble(Int32 address)
+        public Double ReadDouble(Int32 address)
         {
             int read; var buffer = new byte[8];
 
-            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, buffer.Length, out read);
 
             return BitConverter.ToDouble(buffer, 0);
         }
@@ -104,11 +190,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="length"></param>
         /// <returns></returns>
-        public static String ReadString(Int32 address, Int32 length)
+        public String ReadString_Unicode(Int32 address, Int32 length)
         {
             int read; var buffer = new byte[length];
 
-            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, length, out read);
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, length, out read);
 
             var enc = new UnicodeEncoding();
             var rtnStr = enc.GetString(buffer);
@@ -117,12 +203,50 @@ namespace PWFrameWork
         }
 
         /// <summary>
+        /// Читает из памяти String по указанному адресу с заданной длиной в кодировке ANSCII.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        public String ReadString_ASCII(Int32 address, Int32 length)
+        {
+            int read; var buffer = new byte[length];
+
+            WinApi.ReadProcessMemory(OpenedProcessHandle, address, buffer, length, out read);
+
+            var enc = new ASCIIEncoding();
+            var rtnStr = enc.GetString(buffer);
+
+            return (rtnStr.IndexOf('\0') != -1) ? rtnStr.Substring(0, rtnStr.IndexOf('\0')) : rtnStr;
+        }
+
+        /// <summary>
+        /// Читает из памяти Byte, используя цепочку оффсетов.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="offsets"></param>
+        /// <returns></returns>
+        public Int16 ChainReadByte(Int32 address, params Int32[] offsets)
+        {
+            if (offsets.Length == 0) return ReadByte(address);
+
+            var tmpInt = ReadInt32(address);
+
+            for (var i = 0; i < offsets.Length - 1; i++)
+            {
+                tmpInt = ReadInt32(tmpInt + offsets[i]);
+            }
+
+            return ReadByte(tmpInt + offsets[offsets.Length - 1]);
+        }
+
+        /// <summary>
         /// Читает из памяти Int16, используя цепочку оффсетов.
         /// </summary>
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static Int16 ChainReadInt16(Int32 address, params Int32[] offsets)
+        public Int16 ChainReadInt16(Int32 address, params Int32[] offsets)
         {
             if (offsets.Length == 0) return ReadInt16(address);
 
@@ -142,7 +266,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static Int32 ChainReadInt32(Int32 address, params Int32[] offsets)
+        public Int32 ChainReadInt32(Int32 address, params Int32[] offsets)
         {
             if (offsets.Length == 0) return ReadInt32(address);
 
@@ -157,12 +281,31 @@ namespace PWFrameWork
         }
 
         /// <summary>
+        /// Читает из памяти UInt32, используя цепочку оффсетов.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="offsets"></param>
+        /// <returns></returns>
+        public UInt32 ChainReadUInt32(Int32 address, params Int32[] offsets)
+        {
+            if (offsets.Length == 0) return ReadUInt32(address);
+
+            var tmpInt = ReadInt32(address);
+
+            for (var i = 0; i < offsets.Length - 1; i++)
+            {
+                tmpInt = ReadInt32(tmpInt + offsets[i]);
+            }
+
+            return ReadUInt32(tmpInt + offsets[offsets.Length - 1]);
+        }
+        /// <summary>
         /// Читает из памяти Int64, используя цепочку оффсетов.
         /// </summary>
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static Int64 ChainReadInt64(Int32 address, params Int32[] offsets)
+        public Int64 ChainReadInt64(Int32 address, params Int32[] offsets)
         {
             if (offsets.Length == 0) return ReadInt64(address);
 
@@ -182,7 +325,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static Single ChainReadFloat(Int32 address, params Int32[] offsets)
+        public Single ChainReadFloat(Int32 address, params Int32[] offsets)
         {
             if (offsets.Length == 0) return ReadFloat(address);
 
@@ -202,7 +345,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static Double ChainReadDouble(Int32 address, params Int32[] offsets)
+        public Double ChainReadDouble(Int32 address, params Int32[] offsets)
         {
             if (offsets.Length == 0) return ReadDouble(address);
 
@@ -223,9 +366,9 @@ namespace PWFrameWork
         /// <param name="length"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static String ChainReadString(Int32 address, Int32 length, params Int32[] offsets)
+        public String ChainReadString_Unicode(Int32 address, Int32 length, params Int32[] offsets)
         {
-            if (offsets.Length == 0) return ReadString(address, length);
+            if (offsets.Length == 0) return ReadString_Unicode(address, length);
 
             var tmpInt = ReadInt32(address);
 
@@ -234,7 +377,28 @@ namespace PWFrameWork
                 tmpInt = ReadInt32(tmpInt + offsets[i]);
             }
 
-            return ReadString(tmpInt + offsets[offsets.Length - 1], length);
+            return ReadString_Unicode(tmpInt + offsets[offsets.Length - 1], length);
+        }
+
+        /// <summary>
+        /// Читает из памяти String заданной длины, в кодировке ASCII, используя цепочку оффсетов .
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="length"></param>
+        /// <param name="offsets"></param>
+        /// <returns></returns>
+        public String ChainReadString_ASCII(Int32 address, Int32 length, params Int32[] offsets)
+        {
+            if (offsets.Length == 0) return ReadString_ASCII(address, length);
+
+            var tmpInt = ReadInt32(address);
+
+            for (var i = 0; i < offsets.Length - 1; i++)
+            {
+                tmpInt = ReadInt32(tmpInt + offsets[i]);
+            }
+
+            return ReadString_ASCII(tmpInt + offsets[offsets.Length - 1], length);
         }
 
         /// <summary>
@@ -243,7 +407,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        private static Int32 GetaddressByChaing(Int32 address, params Int32[] offsets)
+        private Int32 GetaddressByChaing(Int32 address, params Int32[] offsets)
         {
             if (offsets.Length == 0) return ReadInt32(address);
 
@@ -257,17 +421,39 @@ namespace PWFrameWork
             return tmpInt + offsets[offsets.Length - 1];
         }
 
+        public T Read<T>(Int32 address)
+        {
+            return ReadArray<T>(address, 1)[0];
+        }
+
+        public T[] ReadArray<T>(Int32 address, int length)
+        {
+            T[] result = new T[length];
+            GCHandle handle = GCHandle.Alloc(result, GCHandleType.Pinned);
+            try
+            {
+                IntPtr ptr = handle.AddrOfPinnedObject();
+                int read = 0;
+                WinApi.ReadProcessMemory2(OpenedProcessHandle, address, ptr, length * Marshal.SizeOf(typeof(T)), out read);
+            }
+            finally
+            {
+                handle.Free();
+            }
+            return result;
+        }
+
         /// <summary>
         /// Записывает Byte по указанному адресу.
         /// </summary>
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteByte(Int32 address, byte value)
+        public bool WriteByte(Int32 address, byte value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, new[] { value }, 1, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, new[] { value }, 1, out tmpInt);
         }
 
         /// <summary>
@@ -276,11 +462,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteBytes(Int32 address, byte[] value)
+        public bool WriteBytes(Int32 address, byte[] value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, value, value.Length, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, value, value.Length, out tmpInt);
         }
 
         /// <summary>
@@ -289,11 +475,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteInt16(Int32 address, Int16 value)
+        public bool WriteInt16(Int32 address, Int16 value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, BitConverter.GetBytes(value), 2, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, BitConverter.GetBytes(value), 2, out tmpInt);
         }
 
         /// <summary>
@@ -302,11 +488,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteInt32(Int32 address, Int32 value)
+        public bool WriteInt32(Int32 address, Int32 value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, BitConverter.GetBytes(value), 4, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, BitConverter.GetBytes(value), 4, out tmpInt);
         }
 
         /// <summary>
@@ -315,11 +501,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteInt64(Int32 address, Int64 value)
+        public bool WriteInt64(Int32 address, Int64 value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, BitConverter.GetBytes(value), 8, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, BitConverter.GetBytes(value), 8, out tmpInt);
         }
 
         /// <summary>
@@ -328,11 +514,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteFloat(Int32 address, float value)
+        public bool WriteFloat(Int32 address, float value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, BitConverter.GetBytes(value), 4, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, BitConverter.GetBytes(value), 4, out tmpInt);
         }
 
         /// <summary>
@@ -341,11 +527,11 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        public static bool WriteDouble(Int32 address, Double value)
+        public bool WriteDouble(Int32 address, Double value)
         {
             int tmpInt;
 
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, BitConverter.GetBytes(value), 8, out tmpInt);
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, BitConverter.GetBytes(value), 8, out tmpInt);
         }
 
         /// <summary>
@@ -354,14 +540,30 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="str"></param>
         /// <returns></returns>
-        public static bool WriteString(Int32 address, string str)
+        public bool WriteString_Unicode(Int32 address, string str)
         {
             int tmpInt;
             var strBytes = new List<byte>();
             strBytes.AddRange(Encoding.Unicode.GetBytes(str));
             strBytes.AddRange(Encoding.Unicode.GetBytes("\0"));
-            
-            return WinApi.WriteProcessMemory(OpenProcessHandle, address, strBytes.ToArray(), strBytes.Count, out tmpInt);
+
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, strBytes.ToArray(), strBytes.Count, out tmpInt);
+        }
+
+        /// <summary>
+        /// Записывает ASCII String по указанному адресу.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public bool WriteString_ASCII(Int32 address, string str)
+        {
+            int tmpInt;
+            var strBytes = new List<byte>();
+            strBytes.AddRange(Encoding.ASCII.GetBytes(str));
+            strBytes.AddRange(Encoding.ASCII.GetBytes("\0"));
+
+            return WinApi.WriteProcessMemory(OpenedProcessHandle, address, strBytes.ToArray(), strBytes.Count, out tmpInt);
         }
 
         /// <summary>
@@ -371,7 +573,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteByte(byte value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteByte(byte value, Int32 address, params Int32[] offsets)
         {
             return WriteByte(GetaddressByChaing(address, offsets), value);
         }
@@ -383,7 +585,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteBytes(byte[] value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteBytes(byte[] value, Int32 address, params Int32[] offsets)
         {
             return WriteBytes(GetaddressByChaing(address, offsets), value);
         }
@@ -395,7 +597,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteInt16(Int16 value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteInt16(Int16 value, Int32 address, params Int32[] offsets)
         {
             return WriteInt16(GetaddressByChaing(address, offsets), value);
         }
@@ -407,7 +609,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteInt32(Int32 value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteInt32(Int32 value, Int32 address, params Int32[] offsets)
         {
             return WriteInt32(GetaddressByChaing(address, offsets), value);
         }
@@ -419,7 +621,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteInt64(Int64 value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteInt64(Int64 value, Int32 address, params Int32[] offsets)
         {
             return WriteInt64(GetaddressByChaing(address, offsets), value);
         }
@@ -431,7 +633,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteFloat(Single value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteFloat(Single value, Int32 address, params Int32[] offsets)
         {
             return WriteFloat(GetaddressByChaing(address, offsets), value);
         }
@@ -443,7 +645,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteDouble(Double value, Int32 address, params Int32[] offsets)
+        public bool ChainWriteDouble(Double value, Int32 address, params Int32[] offsets)
         {
             return WriteDouble(GetaddressByChaing(address, offsets), value);
         }
@@ -455,9 +657,9 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static bool ChainWriteString(string str, Int32 address, params Int32[] offsets)
+        public bool ChainWriteString(string str, Int32 address, params Int32[] offsets)
         {
-            return WriteString(GetaddressByChaing(address, offsets), str);
+            return WriteString_Unicode(GetaddressByChaing(address, offsets), str);
         }
     }
 }
