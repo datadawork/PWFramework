@@ -36,9 +36,7 @@ namespace PWFrameWork
         {
             IntPtr tmpIntPtr;
 
-            WinApi.CreateRemoteThread(processHandle, IntPtr.Zero, 0, (IntPtr)address, IntPtr.Zero, 0, out tmpIntPtr);
-            
-            return tmpIntPtr;
+            return WinApi.CreateRemoteThread(processHandle, IntPtr.Zero, 0, (IntPtr)address, IntPtr.Zero, 0, out tmpIntPtr);
         }
     }
 }

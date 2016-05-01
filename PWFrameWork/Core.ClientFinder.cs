@@ -10,6 +10,14 @@ namespace PWFrameWork
         public IntPtr Handle { get; set; }
         public Int32 ProcessId { get; set; }
 
+        public Process Process
+        {
+            get
+            {
+                return System.Diagnostics.Process.GetProcessById(ProcessId);
+            }
+        }
+
         public ClientWindow(string name, IntPtr handle, int id)
         {
             Name = name; Handle = handle; ProcessId = id;
@@ -20,6 +28,22 @@ namespace PWFrameWork
             return Name;
         }
     }
+
+    public class ClientVerifiedArgs : EventArgs
+    {
+        private ProcessMemory mem;
+        public ProcessMemory Process { get { return mem; } }
+        public bool IsValid { get; set; }
+        public string Name { get; set; }
+
+        internal ClientVerifiedArgs(ProcessMemory mem, bool isValid, string name)
+        {
+            this.mem = mem;
+            IsValid = isValid;
+            Name = name;
+        }
+    }
+    public delegate void ClientVerifier(ClientFinder sender, ClientVerifiedArgs args);
 
     public class ClientFinder
     {
@@ -33,57 +57,101 @@ namespace PWFrameWork
         /// </summary>
         /// <param name="baseAddress">Базовый адрес клиента PW</param>
         /// <param name="gameRun">Адрес структуры GameRun</param>
-        /// <param name="hostPlayerNameOffset">Оффсет имени персонажа</param>
-        public ClientFinder(Int32 baseAddress, Int32 gameRun, Int32 hostPlayerNameOffset)
+        /// <param name="hostPlayerStructOffset">Оффсет имени персонажа</param>
+        public ClientFinder(Int32 baseAddress, Int32 gameRun, Int32 hostPlayerNameOffset, Int32 hostPlayerStruct = 0x34)
         {
-            HostPlayerStruct = 0x20;
+            HostPlayerStruct = hostPlayerStruct;
             BaseAddress = baseAddress; GameRun = gameRun; HostPlayerName = hostPlayerNameOffset;
         }
 
         /// <summary>
-        /// Проверяет версию клиента PW, путем сравнения значения GA из памяти клиента и указанным.
+        /// Инициализирует новый объект ClientFinder класса для поиска всех окон Perfect World
+        /// </summary>
+        public ClientFinder()
+        {
+
+            BaseAddress = 0; GameRun = 0; HostPlayerName = 0; HostPlayerStruct = 0;
+        }
+
+        public event ClientVerifier ClientVerifier;
+
+        /// <summary>
+        /// Создает объект ClientWindow для каждого клиента PW, у которого возможно определить имя 
         /// </summary>
         /// <returns></returns>
-        private bool CheckClientVersion()
+        public IEnumerable<ClientWindow> GetWindowsNamedPrior()
         {
-            return MemoryManager.ReadInt32(BaseAddress) + 0x1C == GameRun ? true : false;
+            IntPtr hwnd = IntPtr.Zero;
+            while (true)
+            {
+                hwnd = WinApi.FindWindowEx(IntPtr.Zero, hwnd, "ElementClient Window", null);
+
+                if (hwnd == IntPtr.Zero)
+                    break;
+                int pid;
+                WinApi.GetWindowThreadProcessId(hwnd, out  pid);
+                using (Process p = System.Diagnostics.Process.GetProcessById(pid))
+                {
+                    ProcessMemory mem = new ProcessMemory(p);
+                    ClientVerifiedArgs args = new ClientVerifiedArgs(mem, false, null);
+
+                    if (DefaultClientVerifier(mem))
+                    {
+                        args.IsValid = true;
+                        args.Name = (mem[GameRun] + HostPlayerStruct + HostPlayerName + 0).String;
+                    }
+
+                    if (ClientVerifier != null)
+                        ClientVerifier(this, args);
+                    //Если получилось узнать имя - выводим имя
+                    if (args.IsValid)
+                    {
+                        yield return new ClientWindow(String.IsNullOrEmpty(args.Name) ? WinApi.GetWindowText(hwnd) : args.Name,
+                                               hwnd,
+                                               pid);
+                    }
+                    else //иначе выводим все найденные окна без имени
+                    {
+                        yield return new ClientWindow(WinApi.GetWindowText(hwnd), hwnd, pid);
+                    }
+
+
+                }
+            }
+        }
+
+        bool DefaultClientVerifier(ProcessMemory mem)
+        {
+
+            return HostPlayerStruct != 0 && mem[BaseAddress].Int32 + 0x1C == GameRun;
+
         }
 
         /// <summary>
-        /// Создает объект ClientWindow для каждого клиента PW, который найден.
+        /// Создает объект ClientWindow для каждого клиента PW, который найден и выдает его как имя окна. 
         /// </summary>
         /// <returns></returns>
-        public ClientWindow[] GetWindows()
+        public IEnumerable<ClientWindow> GetWindowsAll()
         {
-            var rtnList = new List<ClientWindow>();
-
-            foreach (var process in Process.GetProcesses())
+            IntPtr hwnd = IntPtr.Zero;
+            while (true)
             {
-                try
-                {
-                    if (WinApi.GetWindowClass(process.MainWindowHandle).Equals("ElementClient Window"))
-                    {
-                        MemoryManager.OpenProcess(process.Id);
-                        if (CheckClientVersion())
-                        {
-                            var charName = MemoryManager.ChainReadString(GameRun, 32, HostPlayerStruct, HostPlayerName,
-                                                                         0x0);
+                hwnd = WinApi.FindWindowEx(IntPtr.Zero, hwnd, "ElementClient Window", null);
 
-                            rtnList.Add(new ClientWindow(
-                                            String.IsNullOrEmpty(charName) ? process.MainWindowTitle : charName,
-                                            process.MainWindowHandle, 
-                                            process.Id));
-                        }
-                        MemoryManager.CloseProcess();
-                    }
-                }
-                catch(Exception)
+                if (hwnd == IntPtr.Zero)
+                    break;
+                int pid;
+                WinApi.GetWindowThreadProcessId(hwnd, out  pid);
+                using (Process p = System.Diagnostics.Process.GetProcessById(pid))
                 {
-                    continue;
+                    yield return new ClientWindow(WinApi.GetWindowText(hwnd), hwnd, pid);
+
                 }
             }
-
-            return rtnList.ToArray();
         }
+
+
+
+
     }
 }

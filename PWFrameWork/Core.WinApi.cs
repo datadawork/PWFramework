@@ -74,6 +74,15 @@ namespace PWFrameWork
             out Int32 lpNumberOfBytesRead
             );
 
+        [DllImport("kernel32.dll", EntryPoint = "ReadProcessMemory")]
+        public static extern Int32 ReadProcessMemory2(
+            IntPtr hProcess,
+            Int32 lpBaseAddress,
+            IntPtr buffer,
+            Int32 size,
+            out Int32 lpNumberOfBytesRead
+            );
+
         [DllImport("kernel32.dll")]
         public static extern bool WriteProcessMemory(
             IntPtr hProcess,
@@ -82,17 +91,33 @@ namespace PWFrameWork
             Int32 nSize,
             out Int32 lpNumberOfBytesWritten);
 
+        [DllImport("kernel32.dll")]
+        public static extern bool WriteProcessMemory2(
+            IntPtr hProcess,
+            Int32 lpBaseAddress,
+            IntPtr buffer,
+            Int32 nSize,
+            out Int32 lpNumberOfBytesWritten);
+
         [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
         public static extern IntPtr VirtualAllocEx(IntPtr hProcess, IntPtr lpAddress,
+           Int32 dwSize, AllocationType flAllocationType, MemoryProtection flProtect);
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        public static extern IntPtr VirtualAlloc(IntPtr lpAddress,
            Int32 dwSize, AllocationType flAllocationType, MemoryProtection flProtect);
 
         [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
         public static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress,
            Int32 dwSize, FreeType dwFreeType);
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        public static extern bool VirtualFree(IntPtr lpAddress, Int32 dwSize, FreeType dwFreeType);
 
         [DllImport("kernel32.dll")]
         public static extern IntPtr CreateRemoteThread(IntPtr hProcess,
            IntPtr lpThreadAttributes, int dwStackSize, IntPtr lpStartAddress,
+           IntPtr lpParameter, int dwCreationFlags, out IntPtr lpThreadId);
+        [DllImport("kernel32.dll")]
+        public static extern IntPtr CreateThread(IntPtr lpThreadAttributes, int dwStackSize, IntPtr lpStartAddress,
            IntPtr lpParameter, int dwCreationFlags, out IntPtr lpThreadId);
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -101,11 +126,89 @@ namespace PWFrameWork
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, Int32 nMaxCount);
 
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern IntPtr FindWindowEx(IntPtr hwndParent, IntPtr hwndChildAfter, string lpszClass, string lpszWindow);
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern IntPtr GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+
         public static string GetWindowClass(IntPtr handle)
         {
             var rtnStr = new StringBuilder(128);
             GetClassName(handle, rtnStr, 128);
             return rtnStr.ToString();
         }
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, Int32 nMaxCount);
+        public static string GetWindowText(IntPtr handle)
+        {
+            var rtnStr = new StringBuilder(128);
+            GetWindowText(handle, rtnStr, 128);
+            return rtnStr.ToString();
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling=true)]
+        public static extern IntPtr LoadLibraryW(string lpFileName);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Ansi, ExactSpelling = true)]
+        public static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+
+
+        public delegate int KeyboardHookProc(int code, int wParam, ref KeyboardHookStruct lParam);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KeyboardHookStruct
+        {
+            public int vkCode;
+            public int scanCode;
+            public int flags;
+            public int time;
+            public int dwExtraInfo;
+        }
+
+        public const int WH_KEYBOARD_LL = 13;
+        public const int WM_KEYDOWN = 0x100;
+        public const int WM_KEYUP = 0x101;
+        public const int WM_SYSKEYDOWN = 0x104;
+        public const int WM_SYSKEYUP = 0x105;
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetWindowsHookEx(int idHook, KeyboardHookProc callback, IntPtr hInstance, uint threadId);
+        
+        [DllImport("user32.dll")]
+        public static extern bool UnhookWindowsHookEx(IntPtr hInstance);
+        
+        [DllImport("user32.dll")]
+        public static extern int CallNextHookEx(IntPtr idHook, int nCode, int wParam, ref KeyboardHookStruct lParam);
+        
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+
+        
+        
+        /// <summary>
+        /// Отправляет сообщения окну.
+        /// </summary>
+        /// <param name="hWnd">Хэндл окна (hWnd)</param>
+        /// <param name="Msg">Сообщение определяется как WinApi.Msg</param>
+        /// <param name="wParam">Первый параметр сообщения</param>
+        /// <param name="lParam">Второй параметр сообщеня</param>
+        [DllImport("user32.dll")]
+        public static extern int SendMessage(
+              int hWnd,      // handle to destination window
+              int Msg,       // message
+              int wParam,  // first message parameter
+              string lParam   // second message parameter
+              );
+        [Flags]
+        public enum Msg
+        {
+            SetText = 0xC, //установить текст
+            Close = 0x10, //закрыть окно
+            ButtonDown = 0x201, //нажать кнопку
+            ButtonUp = 0x202 //отпустить кнопку
+        }
+
     }
 }

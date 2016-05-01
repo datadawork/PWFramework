@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Runtime.InteropServices;
 
 namespace PWFrameWork
 {
@@ -25,7 +26,19 @@ namespace PWFrameWork
         /// </summary>
         public static void CloseProcess()
         {
-            WinApi.CloseHandle(OpenProcessHandle);
+            if(OpenProcessHandle != IntPtr.Zero)
+                WinApi.CloseHandle(OpenProcessHandle);
+            OpenProcessHandle = IntPtr.Zero;
+        }
+
+
+        public static byte ReadByte(Int32 address)
+        {
+            int read; var buffer = new byte[1];
+
+            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+
+            return buffer[0];
         }
 
         /// <summary>
@@ -54,6 +67,15 @@ namespace PWFrameWork
             WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
 
             return BitConverter.ToInt32(buffer, 0);
+        }
+
+        public static uint ReadUInt32(Int32 address)
+        {
+            int read; var buffer = new byte[4];
+
+            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, buffer.Length, out read);
+
+            return BitConverter.ToUInt32(buffer, 0);
         }
 
         /// <summary>
@@ -104,7 +126,7 @@ namespace PWFrameWork
         /// <param name="address"></param>
         /// <param name="length"></param>
         /// <returns></returns>
-        public static String ReadString(Int32 address, Int32 length)
+        public static String ReadString_Unicode(Int32 address, Int32 length)
         {
             int read; var buffer = new byte[length];
 
@@ -115,6 +137,25 @@ namespace PWFrameWork
 
             return (rtnStr.IndexOf('\0') != -1) ? rtnStr.Substring(0, rtnStr.IndexOf('\0')) : rtnStr;
         }
+
+        /// <summary>
+        /// Читает из памяти String по указанному адресу с заданной длиной в кодировке ANSCII.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="length"></param>
+        /// <returns></returns>
+        public static String ReadString_ASCII(Int32 address, Int32 length)
+        {
+            int read; var buffer = new byte[length];
+
+            WinApi.ReadProcessMemory(OpenProcessHandle, address, buffer, length, out read);
+
+            var enc = new ASCIIEncoding();
+            var rtnStr = enc.GetString(buffer);
+
+            return (rtnStr.IndexOf('\0') != -1) ? rtnStr.Substring(0, rtnStr.IndexOf('\0')) : rtnStr;
+        }
+
 
         /// <summary>
         /// Читает из памяти Int16, используя цепочку оффсетов.
@@ -156,6 +197,25 @@ namespace PWFrameWork
             return ReadInt32(tmpInt + offsets[offsets.Length - 1]);
         }
 
+        /// <summary>
+        /// Читает из памяти UInt32, используя цепочку оффсетов.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="offsets"></param>
+        /// <returns></returns>
+        public static UInt32 ChainReadUInt32(Int32 address, params Int32[] offsets)
+        {
+            if (offsets.Length == 0) return ReadUInt32(address);
+
+            var tmpInt = ReadInt32(address);
+
+            for (var i = 0; i < offsets.Length - 1; i++)
+            {
+                tmpInt = ReadInt32(tmpInt + offsets[i]);
+            }
+
+            return ReadUInt32(tmpInt + offsets[offsets.Length - 1]);
+        }
         /// <summary>
         /// Читает из памяти Int64, используя цепочку оффсетов.
         /// </summary>
@@ -223,9 +283,9 @@ namespace PWFrameWork
         /// <param name="length"></param>
         /// <param name="offsets"></param>
         /// <returns></returns>
-        public static String ChainReadString(Int32 address, Int32 length, params Int32[] offsets)
+        public static String ChainReadString_Unicode(Int32 address, Int32 length, params Int32[] offsets)
         {
-            if (offsets.Length == 0) return ReadString(address, length);
+            if (offsets.Length == 0) return ReadString_Unicode(address, length);
 
             var tmpInt = ReadInt32(address);
 
@@ -234,7 +294,28 @@ namespace PWFrameWork
                 tmpInt = ReadInt32(tmpInt + offsets[i]);
             }
 
-            return ReadString(tmpInt + offsets[offsets.Length - 1], length);
+            return ReadString_Unicode(tmpInt + offsets[offsets.Length - 1], length);
+        }
+
+        /// <summary>
+        /// Читает из памяти String заданной длины, в кодировке ASCII, используя цепочку оффсетов .
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="length"></param>
+        /// <param name="offsets"></param>
+        /// <returns></returns>
+        public static String ChainReadString_ASCII(Int32 address, Int32 length, params Int32[] offsets)
+        {
+            if (offsets.Length == 0) return ReadString_ASCII(address, length);
+
+            var tmpInt = ReadInt32(address);
+
+            for (var i = 0; i < offsets.Length - 1; i++)
+            {
+                tmpInt = ReadInt32(tmpInt + offsets[i]);
+            }
+
+            return ReadString_ASCII(tmpInt + offsets[offsets.Length - 1], length);
         }
 
         /// <summary>
@@ -255,6 +336,28 @@ namespace PWFrameWork
             }
 
             return tmpInt + offsets[offsets.Length - 1];
+        }
+
+        static public T Read<T>(Int32 address)
+        {
+            return ReadArray<T>(address, 1)[0];
+        }
+
+        static public T[] ReadArray<T>(Int32 address, int length)
+        {
+            T[] result = new T[length];
+            GCHandle handle = GCHandle.Alloc(result, GCHandleType.Pinned);
+            try
+            {
+                IntPtr ptr = handle.AddrOfPinnedObject();
+                int read = 0;
+                WinApi.ReadProcessMemory2(OpenProcessHandle, address, ptr, length * Marshal.SizeOf(typeof(T)), out read);
+            }
+            finally
+            {
+                handle.Free();
+            }
+            return result;
         }
 
         /// <summary>
@@ -361,6 +464,22 @@ namespace PWFrameWork
             strBytes.AddRange(Encoding.Unicode.GetBytes(str));
             strBytes.AddRange(Encoding.Unicode.GetBytes("\0"));
             
+            return WinApi.WriteProcessMemory(OpenProcessHandle, address, strBytes.ToArray(), strBytes.Count, out tmpInt);
+        }
+
+        /// <summary>
+        /// Записывает ASCII String по указанному адресу.
+        /// </summary>
+        /// <param name="address"></param>
+        /// <param name="str"></param>
+        /// <returns></returns>
+        public static bool WriteString_ASCII(Int32 address, string str)
+        {
+            int tmpInt;
+            var strBytes = new List<byte>();
+            strBytes.AddRange(Encoding.ASCII.GetBytes(str));
+            strBytes.AddRange(Encoding.ASCII.GetBytes("\0"));
+
             return WinApi.WriteProcessMemory(OpenProcessHandle, address, strBytes.ToArray(), strBytes.Count, out tmpInt);
         }
 

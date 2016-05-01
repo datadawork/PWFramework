@@ -1,0 +1,42 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoInjection_C_Sharp", "DemoInjection_C_Sharp.csproj", "{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PWFrameWork", "..\PWFrameWork\PWFrameWork.csproj", "{61A60B51-2919-41AF-BEB3-531B610D1062}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|Mixed Platforms = Debug|Mixed Platforms
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|Mixed Platforms = Release|Mixed Platforms
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Debug|Any CPU.ActiveCfg = Debug|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Debug|Mixed Platforms.ActiveCfg = Debug|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Debug|Mixed Platforms.Build.0 = Debug|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Debug|x86.ActiveCfg = Debug|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Debug|x86.Build.0 = Debug|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Release|Any CPU.ActiveCfg = Release|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Release|Mixed Platforms.ActiveCfg = Release|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Release|Mixed Platforms.Build.0 = Release|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Release|x86.ActiveCfg = Release|x86
+		{BDBF3BBC-F37C-4F9A-A4B9-09DAF0F6EC5E}.Release|x86.Build.0 = Release|x86
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{61A60B51-2919-41AF-BEB3-531B610D1062}.Release|x86.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
